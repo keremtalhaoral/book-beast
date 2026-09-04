@@ -1,0 +1,36 @@
+# ── Kitaplar asla commit edilmez ────────────────────────────────
+# Bu depo açık kaynak olacak. Telifli kitap dosyaları buraya girer
+# ama git'e ASLA girmez. Kural istisnasızdır.
+kitaplar/
+*.pdf
+*.epub
+*.mobi
+*.djvu
+*.azw*
+
+# Boru hattı çıktıları (türetilmiş veri — her zaman yeniden üretilebilir)
+cikti/
+*.artifact.json
+
+# Ortam ve sırlar
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
