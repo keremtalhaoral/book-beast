@@ -7,8 +7,6 @@
 
 **Fikir atomu**, tek bir yüklem taşıyan (single-predication), tek başına çürütülebilen ve tek bir karakter-aralığına çapalanmış en küçük bilgi birimidir; çekirdek şeması bütün alanlarda aynıdır, alan farkı yalnızca `ext` uzantısında yaşar. Her atom iki ayrı eksende etiketlenir — **kip** (analitik/ampirik/normatif/anlatısal/yöntemsel) ve **destek** (kanıtlanmış → çürütülmüş) — çünkü "değer yargısı" bir güven seviyesi değil, bir iddia türüdür ve ikisini karıştırmak sistemin epistemik omurgasını kırar. Çelişkide **kazanan ilan edilmez**: sistem önce çelişkiyi 5 tipe ayırır (eşadlılık / kapsam / zamansal yenilenme / gerçek / normatif), yalnızca sunum sırası için bir `credence` skoru hesaplar ve gerçek çelişkiyi kullanıcıya "ayrım noktası" (crux) ile birlikte tek ekranda gösterir.
 
----
-
 ## 1. Fikir atomu nedir?
 
 **Tanım.** Fikir atomu, kitaptan çıkarılmış, (a) tek bir yüklemi olan, (b) bağlamdan koparıldığında hâlâ anlamlı kalan, (c) tek bir kaynak aralığına çapalanan, (d) tek başına doğrulanabilen veya çürütülebilen bilgi birimidir.
@@ -23,71 +21,43 @@ type EditionId = string;     // "edn_" + ULID
 type Iso8601 = string;
 
 interface Atom {
-  // --- kimlik ---
-  id:            AtomId;              // zorunlu, değişmez
-  version:       number;              // zorunlu, 1'den başlar; atom güncellenmez, sürümlenir
-  supersedes:    AtomId | null;       // önceki sürüm (aynı fikir, düzeltilmiş)
-
-  // --- içerik ---
-  type:          AtomType;            // zorunlu — §2
-  claim:         string;              // zorunlu — kanonik ifade, ≤ 3 cümle / ≤ 60 kelime
-  verbatim:      string | null;       // kitaptan birebir alıntı (bazı tiplerde zorunlu — §8)
-  body:          string | null;       // opsiyonel — 40-200 kelime açıklama/bağlam
-  terms:         TermRef[];           // zorunlu (boş olabilir) — kullanılan kavramlar, normalize
-  qualifiers:    Qualifier[];         // zorunlu (boş olabilir) — geçerlilik koşulları — §6.2
-
-  // --- kaynak ---
-  anchor:        SourceAnchor;        // zorunlu — §4
-  edition:       EditionId;           // zorunlu
-
-  // --- epistemik ---
-  epistemic:     EpistemicState;      // zorunlu — §5
-
-  // --- alan ---
-  domain:        Domain;              // zorunlu — ayrık birleşimin ayırıcısı
-  ext:           DomainExtension;     // zorunlu — §8, `domain` alanına göre daraltılır
-
-  // --- işletim ---
+  id:            AtomId;          // "atm_"+ULID, değişmez
+  version:       number;          // atom güncellenmez, sürümlenir
+  supersedes:    AtomId | null;   // önceki sürüm (aynı fikir, düzeltilmiş)
+  type:          AtomType;        // §2
+  claim:         string;          // kanonik ifade, ≤ 3 cümle / ≤ 60 kelime
+  verbatim:      string | null;   // birebir alıntı — bazı tiplerde zorunlu (§8)
+  body:          string | null;   // 40-200 kelime açıklama/bağlam
+  terms:         TermRef[];       // normalize kavramlar (boş olabilir, null olamaz)
+  qualifiers:    Qualifier[];     // geçerlilik koşulları — §6.2
+  anchor:        SourceAnchor;    // §4
+  edition:       EditionId;
+  epistemic:     EpistemicState;  // §5
+  domain:        Domain;          // ayrık birleşimin ayırıcısı
+  ext:           DomainExtension; // §8 — `domain` alanına göre daraltılır
   status:        "draft" | "active" | "quarantined" | "retracted";
-  provenance:    Provenance;          // zorunlu — §1.3
-  fingerprint:   string;              // zorunlu — sha256(normalize(claim) + anchor.quote.exact)
-  embedding_ref: string | null;       // vektör deposundaki anahtar (Katman 2 kullanır)
+  provenance:    Provenance;      // §1.3
+  fingerprint:   string;          // sha256(normalize(claim) + anchor.quote.exact)
+  embedding_ref: string | null;   // vektör deposu anahtarı (Katman 2)
 }
 
-interface TermRef {
-  surface:   string;                  // kitapta geçtiği hâli ("ölçülebilir küme")
-  concept:   string | null;           // kütüphane çapında normalize kavram kimliği
-  defined_by: AtomId | null;          // bu terimi tanımlayan atom (varsa)
-}
-
-interface Qualifier {
-  kind:  "population" | "condition" | "regime" | "unit" | "time" | "assumption";
-  value: string;                      // "n<30 örneklem", "düşük Reynolds", "1789 öncesi Fransa"
-}
-
-interface Provenance {
-  extractor_model:  string;           // "claude-…"
-  prompt_version:   string;           // "digest/v3"
-  extracted_at:     Iso8601;
-  human_reviewed:   boolean;
-  review_note:      string | null;
-}
+interface TermRef    { surface: string; concept: string | null; defined_by: AtomId | null }
+interface Qualifier  { kind: "population"|"condition"|"regime"|"unit"|"time"|"assumption";
+                       value: string }   // "n<30 örneklem", "düşük Reynolds", "1789 öncesi Fransa"
+interface Provenance { extractor_model: string; prompt_version: string; extracted_at: Iso8601;
+                       human_reviewed: boolean; review_note: string | null }
 ```
 
 ### 1.2 Zorunluluk özeti
 
-| Alan | Zorunlu mu? | Not |
-|---|---|---|
-| `id`, `version`, `type`, `claim`, `anchor`, `edition`, `epistemic`, `domain`, `ext`, `status`, `provenance`, `fingerprint` | **Evet** | Eksikse atom yazılamaz |
-| `verbatim` | **Tipe bağlı** | `theorem`, `definition`, `formula`, `quote` tiplerinde zorunlu |
-| `body`, `embedding_ref`, `supersedes` | Hayır | |
-| `terms`, `qualifiers` | Evet (boş dizi serbest) | `null` yasak — boş dizi ile açık ol |
+- **Zorunlu:** `id`, `version`, `type`, `claim`, `anchor`, `edition`, `epistemic`, `domain`, `ext`, `status`, `provenance`, `fingerprint`. Eksikse atom yazılamaz.
+- **Zorunlu ama boş dizi serbest:** `terms`, `qualifiers`. `null` yasak — boşluğu açıkça beyan et.
+- **Tipe bağlı zorunlu:** `verbatim` → `theorem`, `definition`, `formula`, `quote`.
+- **Opsiyonel:** `body`, `embedding_ref`, `supersedes`.
 
 ### 1.3 Değişmezlik kuralı
 
 Atomlar **silinmez ve yerinde düzeltilmez**. Düzeltme = yeni sürüm + `supersedes`. Çürütülen atom `epistemic.support = "refuted"` alır ama grafta kalır; çünkü "bu kitap yanlış olduğu kanıtlanmış şeyi söylüyor" bilgisinin kendisi değerlidir. Yalnızca çıkarım hatası (kitapta olmayan şeyin uydurulması) `retracted` yapar.
-
----
 
 ## 2. Atom tipolojisi
 
@@ -112,8 +82,6 @@ Atomlar **silinmez ve yerinde düzeltilmez**. Düzeltme = yeni sürüm + `supers
 - `method` ≠ `heuristic`: yöntemin önkoşulları ve çıktısı tanımlıdır; sezgisel kuralın istisnaları vardır.
 - `normative_claim` asla `proved`/`refuted` desteği alamaz — yalnızca `stance` işaretlenir. Şema bunu kısıtlar.
 - `anecdote` transfer motorunda **analoji taşıyıcısı** olarak birinci sınıf yurttaştır; "önemsiz hikâye" değildir. Çapraz-alan sıçramalarının çoğu anekdot–mekanizma eşleşmesinden çıkar.
-
----
 
 ## 3. Granülerlik kuralı
 
@@ -159,8 +127,6 @@ Bir parça, Açık Sorular Defteri'ndeki bir soruya **tek başına** aday olamı
 
 **Alarm kuralı.** Gerçek yoğunluk bandın **altındaysa** sindirim eksik → yeniden çalıştır. **Üstündeyse** aşırı parçalama (over-splitting) → birleştirme turu çalıştır. İki denemede banda giremeyen kitap `quarantined` olur ve kullanıcıya "bu kitap beklenenden farklı yoğunlukta, gözden geçirilsin" rozeti gösterilir.
 
----
-
 ## 4. Kaynak çapası (source anchor)
 
 ### 4.1 Karar: kanonik birim **karakter ofsetidir**, sayfa değil
@@ -169,40 +135,29 @@ Yükleme sırasında her kitap tek bir **normalize metin akışına** (normalize
 
 ```ts
 interface SourceAnchor {
-  edition:     EditionId;
+  edition:    EditionId;
+  char_start: number;   char_end: number;        // 1) KANONİK: normalize akışta aralık
 
-  // 1) Kanonik: normalize akışta karakter aralığı
-  char_start:  number;              // zorunlu
-  char_end:    number;              // zorunlu
+  locator: {                                     // 2) yapısal konum (insan okur)
+    chapter_idx: number; chapter_title: string;
+    section_path: string[];                      // ["7","7.3","7.3.2"]
+    paragraph_idx: number };
 
-  // 2) Yapısal konum (insan okur)
-  locator: {
-    chapter_idx:   number;          // 0'dan
-    chapter_title: string;
-    section_path:  string[];        // ["7", "7.3", "7.3.2"]
-    paragraph_idx: number;
-  };
+  native:                                        // 3) format-özel geri dönüş çapası
+    | { kind: "epub"; cfi_start: string; cfi_end: string; spine_idref: string }
+    | { kind: "pdf";  page: number; quads: number[][] }      // dört köşe — vurgulama
+    | { kind: "html"; xpath_start: string; xpath_end: string; offset_start: number; offset_end: number }
+    | { kind: "text" };                          // char aralığı yeterli
 
-  // 3) Format-özel çapa (biçim ne olursa olsun geri dönebilmek için)
-  native:
-    | { kind: "epub";  cfi_start: string; cfi_end: string; spine_idref: string }
-    | { kind: "pdf";   page: number; quads: number[][] }        // dört köşe, vurgulama için
-    | { kind: "html";  xpath_start: string; xpath_end: string; offset_start: number; offset_end: number }
-    | { kind: "text";  /* char aralığı yeterli */ };
+  quote: {                                       // 4) W3C TextQuoteSelector — sürüklenmeye dayanıklı
+    prefix: string;                              // önceki 48 karakter
+    exact:  string;                              // alıntı, ≤ 1200 karakter
+    suffix: string;                              // sonraki 48 karakter
+    hash:   string };                            // sha256(prefix|exact|suffix)
 
-  // 4) Sürüklenmeye dayanıklı alıntı imzası (W3C TextQuoteSelector)
-  quote: {
-    prefix: string;                 // önceki 48 karakter
-    exact:  string;                 // alıntının kendisi (≤ 1200 karakter)
-    suffix: string;                 // sonraki 48 karakter
-    hash:   string;                 // sha256(prefix|exact|suffix)
-  };
-
-  // 5) Sayfalama
-  print_page:   number | null;      // EPUB page-list veya PDF gerçek sayfası; yoksa null
-  pseudo_page:  number;             // zorunlu — türetilmiş, §4.2
-  progress:     number;             // 0..1, kitap içi konum
-
+  print_page:  number | null;   // EPUB page-list / PDF gerçek sayfası; yoksa null
+  pseudo_page: number;          // türetilmiş — §4.2
+  progress:    number;          // 0..1 kitap içi konum
   anchor_status: "ok" | "drifted" | "lost";
 }
 ```
@@ -231,8 +186,6 @@ Kullanıcı aynı kitabın yeni dosyasını yüklerse **yeniden çapalama** (re-
 
 **Doktrin 2 uygulaması:** `drifted` atom transfer önerisinde kullanılabilir ama **alıntı gösteremez** ve "konum doğrulanamadı" rozeti taşır. `lost` atom hiçbir üretimde kullanılamaz, yalnızca arşivde durur.
 
----
-
 ## 5. Epistemik durum
 
 ### 5.1 Karar: tek eksen değil, dört eksen
@@ -241,41 +194,35 @@ Tek bir "güven etiketi" yanlıştır çünkü "yazarın kanısı" ile "speküla
 
 ```ts
 interface EpistemicState {
-  modality:     Modality;         // iddianın türü
-  support:      Support;          // destek derecesi
-  verification: Verification;     // BİZİM ne doğruladığımız
-  hedge:        Hedge;            // YAZARIN kendi kesinlik dili
-  rationale:    string;           // ≤ 200 karakter — neden bu etiket
+  modality:     Modality;      // iddianın TÜRÜ
+  support:      Support;       // destek DERECESİ
+  verification: Verification;  // BİZİM ne doğruladığımız
+  hedge:        Hedge;         // YAZARIN kendi kesinlik dili
+  rationale:    string;        // ≤ 200 karakter — neden bu etiket
   assessed_by:  "rule" | "llm" | "human";
 }
 
 type Modality =
-  | "analytic"    // tanım gereği doğru; matematik, mantık, terim uzlaşımı
-  | "empirical"   // dünya hakkında; ölçümle yanlışlanabilir
-  | "normative"   // olması gereken; değer yargısı
-  | "procedural"  // nasıl yapılır; başarı/başarısızlıkla değerlendirilir
-  | "narrative";  // tekil olay anlatısı; kaynak güvenilirliğiyle değerlendirilir
+  | "analytic"    // tanım gereği doğru: matematik, mantık, terim uzlaşımı
+  | "empirical"   // dünya hakkında, ölçümle yanlışlanabilir
+  | "normative"   // olması gereken, değer yargısı
+  | "procedural"  // nasıl yapılır, başarı/başarısızlıkla değerlendirilir
+  | "narrative";  // tekil olay anlatısı, kaynak güvenilirliğiyle değerlendirilir
 
 type Support =
-  | "proved"        // biçimsel ispat mevcut — YALNIZCA modality=analytic
-  | "strong"        // çoklu bağımsız kanıt / meta-analiz / tekrarlanmış
-  | "moderate"      // tek iyi çalışma veya yaygın uzman uzlaşısı, tekrar yok
-  | "weak"          // dolaylı, küçük örneklem, tek vaka, seçilmiş örnek
-  | "speculative"   // hipotez, mekanizma önerisi, düşünce deneyi
-  | "contested"     // alanda aktif tartışma; iki güçlü taraf var
-  | "refuted"       // daha güçlü kanıtla yalanlanmış
-  | "not_applicable"// modality=normative veya narrative
-  | "unassessed";   // varsayılan; değerlendirici geçmedi
+  | "proved"          // biçimsel ispat var — YALNIZCA modality=analytic
+  | "strong"          // çoklu bağımsız kanıt / meta-analiz / tekrarlanmış
+  | "moderate"        // tek iyi çalışma veya uzman uzlaşısı, tekrar yok
+  | "weak"            // dolaylı, küçük örneklem, tek vaka, seçilmiş örnek
+  | "speculative"     // hipotez, mekanizma önerisi, düşünce deneyi
+  | "contested"       // alanda aktif tartışma, iki güçlü taraf
+  | "refuted"         // daha güçlü kanıtla yalanlanmış
+  | "not_applicable"  // modality = normative | narrative
+  | "unassessed";     // varsayılan — değerlendirici geçmedi
 
-type Verification =
-  | "symbolic_ok"    // SymPy/birim testi geçti (03 belgesi)
-  | "symbolic_fail"
-  | "citation_ok"    // atıf bulundu ve iddiayı destekliyor
-  | "citation_missing"
-  | "human_ok"
-  | "unverified";    // varsayılan
-
-type Hedge = "asserted" | "hedged" | "conjectured" | "attributed";
+type Verification = "symbolic_ok" | "symbolic_fail" | "citation_ok"
+                  | "citation_missing" | "human_ok" | "unverified";  // varsayılan: unverified
+type Hedge        = "asserted" | "hedged" | "conjectured" | "attributed";
 ```
 
 ### 5.2 Atama kriterleri (işletilebilir)
@@ -301,21 +248,11 @@ type Hedge = "asserted" | "hedged" | "conjectured" | "attributed";
 
 ### 5.3 Kullanıcıya gösterim (tek kelimeye indirgeme)
 
-Kullanıcı 4 eksen görmez. Arayüz tek bir rozet gösterir; eşleme:
-
-| Rozet | Koşul |
-|---|---|
-| **Kanıtlanmış** | `support=proved` |
-| **Sağlam** | `support=strong` |
-| **Destekli** | `support=moderate` |
-| **Zayıf** | `support ∈ {weak}` |
-| **Spekülatif** | `support=speculative` veya `hedge=conjectured` |
-| **Tartışmalı** | `support=contested` |
-| **Çürütülmüş** | `support=refuted` |
-| **Yazarın görüşü** | `modality=normative` |
-| **Değerlendirilmedi** | `support=unassessed` |
-
----
+Kullanıcı 4 eksen görmez; arayüz tek rozet gösterir. Öncelik sırasıyla:
+**Yazarın görüşü** (`modality=normative`) · **Çürütülmüş** (`refuted`) · **Tartışmalı** (`contested`) ·
+**Kanıtlanmış** (`proved`) · **Sağlam** (`strong`) · **Destekli** (`moderate`) ·
+**Spekülatif** (`speculative` veya `hedge=conjectured`) · **Zayıf** (`weak`) · **Değerlendirilmedi** (`unassessed`).
+`verification=symbolic_fail` ise rozete `[doğrulanamadı]` eklenir — rozetin kendisi ne olursa olsun.
 
 ## 6. Çelişki yönetimi
 
@@ -371,28 +308,17 @@ Yarı-ömrü ∞ olan alanlarda **tip 3 (zamansal yenilenme) hiç uygulanmaz** �
 Doktrin 1 gereği tek ekran, tek karar:
 
 ```
-┌──────────────────────────────────────────────┐
-│  ÇELİŞKİ — aynı soruya iki cevap             │
-│                                              │
-│  A · Kitap X, s. 212        [Sağlam]         │
-│  "…"                                         │
-│                                              │
-│  B · Kitap Y, ≈ s. 88       [Destekli]       │
-│  "…"                                         │
-│                                              │
-│  AYRIM NOKTASI (crux):                       │
-│  "X 2018 öncesi veriyle, Y 2023 kohortuyla   │
-│   çalışıyor. Fark örneklemde, yöntemde değil"│
-│                                              │
-│         [ Defterime al ]   [ Sonra ]         │
-└──────────────────────────────────────────────┘
+ÇELİŞKİ — aynı soruya iki cevap
+  A · Kitap X, s. 212    [Sağlam]     "…"
+  B · Kitap Y, ≈ s. 88   [Destekli]   "…"
+  AYRIM NOKTASI: "X 2018 öncesi veriyle, Y 2023 kohortuyla çalışıyor.
+                  Fark örneklemde, yöntemde değil."
+  [ Defterime al ]   [ Sonra ]
 ```
 
 - İki taraf **eşit görsel ağırlıkta** gösterilir; `credence` yalnızca sırayı belirler, boyutu değil.
 - **Ayrım noktası zorunludur.** Sistem crux üretemiyorsa kart gösterilmez, çelişki `unresolved_unexplained` kuyruğuna düşer. Açıklanamayan çelişkiyi kullanıcıya atmak kafa karıştırmaktır — Doktrin 1 ihlali.
 - Kullanıcı bir tarafı seçerse bu bir *hakikat kararı* değil, **kişisel duruş** olarak `user_stance` tablosuna yazılır ve sonraki üretimlerde o taraf öne alınır, ama diğeri asla silinmez.
-
----
 
 ## 7. İlişki taksonomisi (Katman 2)
 
@@ -400,15 +326,12 @@ Doktrin 1 gereği tek ekran, tek karar:
 
 ```ts
 interface Relation {
-  id:        string;
-  type:      RelationType;
-  from:      AtomId;
-  to:        AtomId;
-  strength:  number;          // 0..1 — ilişkinin ne kadar sıkı olduğu
-  confidence: number;         // 0..1 — tespitin ne kadar güvenilir olduğu
-  evidence:  string | null;   // kenarı doğuran metin/gerekçe
-  detector:  "embedding" | "llm" | "symbolic" | "rule" | "human";
-  status:    "proposed" | "accepted" | "rejected";
+  id: string;  type: RelationType;  from: AtomId;  to: AtomId;
+  strength:   number;        // 0..1 — ilişki ne kadar SIKI
+  confidence: number;        // 0..1 — tespit ne kadar GÜVENİLİR
+  evidence:   string | null; // kenarı doğuran metin/gerekçe
+  detector:   "embedding" | "llm" | "symbolic" | "rule" | "human";
+  status:     "proposed" | "accepted" | "rejected";
 }
 ```
 
@@ -448,8 +371,6 @@ interface Relation {
 4. **`CONTRADICTS` geçişli değildir** — A ile B, B ile C çelişiyorsa A ile C çelişmez (hatta aynı olabilir). Bu kural kapatılmazsa graf çelişki gürültüsüne boğulur.
 5. **`ANALOGOUS_TO` yalnızca farklı `domain` atomları arasında kurulur.** Aynı alandaki benzerlik `RESTATES` veya `GENERALIZES`'tır. Bu kısıt, transfer motorunun (belge 07) sinyalini temiz tutar.
 6. **`REFUTES` yönü `credence` ile belirlenir**, ama otomatik `refuted` etiketi için eşik: `credence(from) − credence(to) ≥ 0.25`. Altındaysa kenar `CONTRADICTS`'a düşer ve Çatışma Kartına gider.
-
----
 
 ## 8. Alanlar arası fark: ortak çekirdek + alan uzantısı
 
@@ -505,35 +426,25 @@ Her `ext` üç kancayı doldurmak **zorundadır**; çekirdek motor yalnızca bu 
 
 **Neden tek çekirdekte ısrar ediyoruz:** Ürünün kalbi çapraz-alan transferidir (Doktrin/Bölüm 2). Bir tıp titrasyon mantığının bir optimizasyon problemine bağlanması, ancak iki atomun **aynı biçimde** temsil edilmesiyle mümkündür. Alan başına ayrı şema, `ANALOGOUS_TO` kenarını hesaplanamaz kılardı.
 
----
-
 ## 9. Yaşam döngüsü (özet)
 
 ```
-ham metin
-  → normalize akış + edition kimliği        (§4.1)
-  → aday atom çıkarımı                      (§1, §2)
-  → granülerlik turu: böl / birleştir       (§3.2, §3.3)
-  → yoğunluk alarmı                          (§3.5)
-  → çapa doğrulama + quote hash             (§4.3)
-  → epistemik etiketleme (kural → llm → insan) (§5.2)
-  → sert kısıt denetimi; ihlal → quarantined
-  → graf yerleştirme, kenar üretimi          (§7)
-  → DAG döngü denetimi + denklik sınıfları   (§7.3)
-  → çelişki sınıflandırma → Çatışma Kartı    (§6)
-  → transfer eşlemesi (belge 07)
+ham metin → normalize akış + edition kimliği (§4.1) → aday atom çıkarımı (§1,§2)
+  → granülerlik turu: böl/birleştir (§3.2-3.3) → yoğunluk alarmı (§3.5)
+  → çapa doğrulama + quote hash (§4.3) → epistemik etiketleme: kural→llm→insan (§5.2)
+  → sert kısıt denetimi; ihlal ⇒ quarantined
+  → kenar üretimi (§7) → DAG döngü denetimi + denklik sınıfları (§7.3)
+  → çelişki sınıflandırma → Çatışma Kartı (§6) → transfer eşlemesi (belge 07)
 ```
-
----
 
 ## 10. Açık sorular
 
-`AÇIK SORU:` **Sözde-sayfa 1800 karakter** iyi bir sabit mi? Türkçe ve İngilizce metinlerde ortalama kelime uzunluğu farklı; Türkçe kitaplarda sayfa başına karakter daha yüksek olabilir. Dil bazlı sabit (TR 1900, EN 1800) gerekebilir — ilk 20 kitapta ölçülüp kalibre edilmeli.
+`AÇIK SORU:` **Sözde-sayfa 1800 karakter** doğru sabit mi? Türkçe metinlerde sayfa başına karakter daha yüksek olabilir; dil bazlı sabit (TR ~1900 / EN ~1800) gerekebilir. İlk 20 kitapta ölçülüp kalibre edilmeli.
 
-`AÇIK SORU:` **`credence` ağırlıkları (0.45 / 0.25 / 0.20 / 0.10)** ilk tahmindir. Kullanıcı Çatışma Kartında hangi tarafı seçtiğini kaydediyoruz; 100 seçimden sonra ağırlıklar bu geri bildirimle yeniden ayarlanmalı mı, yoksa sabit ve şeffaf mı kalmalı? Şeffaflık lehine sabit tutmaya eğilimliyim.
+`AÇIK SORU:` **`credence` ağırlıkları (0.45/0.25/0.20/0.10)** ilk tahmindir. Kullanıcının Çatışma Kartı seçimleriyle öğrenilsin mi, yoksa sabit ve şeffaf mı kalsın? Şeffaflık lehine sabit tutmaya eğilimliyim.
 
-`AÇIK SORU:` **Denklik sınıfı temsilcisi** seçilirken en iyi çapaya mı yoksa en yüksek `credence`'a mı öncelik verilmeli? İkisi çeliştiğinde (iyi çapalı zayıf atom vs. çapası sürüklenmiş sağlam atom) kural belirsiz. Belge 02 ile birlikte kararlaştırılmalı.
+`AÇIK SORU:` **Denklik sınıfı temsilcisi** en iyi çapaya göre mi, en yüksek `credence`'a göre mi seçilmeli? İkisi çeliştiğinde (iyi çapalı zayıf atom vs. çapası sürüklenmiş sağlam atom) kural belirsiz — belge 02 ile kararlaştırılmalı.
 
-`AÇIK SORU:` Bir atomun **birden fazla `domain`'e** ait olması gerekebilir mi (biyomühendislik, matematiksel finans)? Şu an tek `domain` + tek `ext` varsayıyorum; `secondary_domains: Domain[]` eklemek `ANALOGOUS_TO` kısıtını (§7.3-5) bulanıklaştırır. İlk sürümde tek alanla gidip ölçmeyi öneriyorum.
+`AÇIK SORU:` Bir atom **birden fazla `domain`'e** ait olabilmeli mi (biyomühendislik, matematiksel finans)? `secondary_domains` eklemek `ANALOGOUS_TO` kısıtını (§7.3-5) bulanıklaştırır; ilk sürümde tek alanla gidip ölçmeyi öneriyorum.
 
-`AÇIK SORU:` `qualifiers` serbest metin `value` taşıyor. Kapsam çelişkisi teşhisi (§6.2-2) "kesişim boş mu" sorusunu soruyor — bu, serbest metinle güvenilir yapılamaz. Sık geçen qualifier'lar için denetimli sözlük (controlled vocabulary) gerekiyor; kapsamı belge 08 ile netleşmeli.
+`AÇIK SORU:` `qualifiers.value` serbest metin, ama kapsam çelişkisi teşhisi (§6.2-2) "kesişim boş mu" sorusunu soruyor — bu serbest metinle güvenilir yapılamaz. Sık qualifier'lar için denetimli sözlük (controlled vocabulary) gerekiyor; kapsamı belge 08 ile netleşmeli.

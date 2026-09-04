@@ -20,11 +20,11 @@ Doğrulanamayan atom silinmez, **karantinaya alınır**: grafta kenar kuramaz, t
 
 | # | İlke | Sonucu |
 |---|------|--------|
-| D0 | **LLM'in "bu doğrudur" demesi kanıt değildir.** | Modelin öz-değerlendirme skoru (`confidence: 0.95`) hiçbir kapıda girdi olarak kullanılmaz. Şemadan tamamen çıkarılmıştır. |
-| D1 | **Doğrulayıcı, üreticiden bağımsız olmalı.** | Atomu üreten çağrı ile doğrulayan mekanizma aynı bağlamı paylaşmaz. Doğrulayıcı yalnız (atom, ham sayfa metni) çiftini görür — üretimin gerekçesini görmez. |
-| D2 | **Deterministik kontrol > olasılıksal kontrol.** | Sıralama sabittir: string eşleme → sembolik cebir → NLI. Ucuz ve kesin olan önce çalışır; pahalı ve bulanık olan sadece artakalanı görür. |
-| D3 | **Sessizlik hatadır.** | Bir kontrol çalışmadıysa (timeout, parse hatası, ağ hatası) sonuç "geçti" değil `doğrulanamadı(çalışmadı)` olur. Fail-open yasak. |
-| D4 | **Etiket veri modelinin parçasıdır, sunumun süsü değildir.** | Etiket atomda saklanır, kenarlara ve transferlere yayılır (§4.3), sorgu filtresi olarak kullanılabilir. |
+| D0 | **LLM'in "bu doğrudur" demesi kanıt değildir.** | Modelin öz-güven skoru (`confidence: 0.95`) hiçbir kapıya girdi olmaz; şemadan tamamen çıkarılmıştır. |
+| D1 | **Doğrulayıcı üreticiden bağımsızdır.** | Doğrulayıcı yalnız (atom, ham sayfa metni) çiftini görür — üretimin gerekçesini görmez. |
+| D2 | **Deterministik kontrol > olasılıksal kontrol.** | Sıra sabit: string eşleme → sembolik cebir → NLI. Ucuz ve kesin olan önce; pahalı ve bulanık olan sadece artakalanı görür. |
+| D3 | **Sessizlik hatadır.** | Kontrol çalışmadıysa (timeout, parse, ağ) sonuç "geçti" değil `doğrulanamadı(çalışmadı)`dır. Fail-open yasak. |
+| D4 | **Etiket veri modelinin parçasıdır.** | Atomda saklanır, kenarlara/transferlere yayılır (§4.3), sorgu filtresidir. |
 
 ---
 
@@ -55,14 +55,12 @@ Sayfa metni ve alıntı **aynı** fonksiyondan geçer. Aksi halde eşleşme oran
 
 ```
 N(s):
-  unicode NFKC
-  ligatür açma: ﬁ→fi, ﬂ→fl, ﬀ→ff
-  tırnak/tire birleştirme: “ ” ‘ ’ → " '   ; – — ‐ → -
-  satır sonu tirelemesi kapatma:  "integ-\nral" → "integral"
-  tüm boşluk dizileri → tek boşluk
-  sayfa üstbilgi/altbilgi/sayfa numarası şeritlerini at (düzen analizinden gelen kutu bilgisiyle)
-  Türkçe için: casefold (i/İ tuzağına dikkat, lower() değil casefold())
-  matematik satırları için: $...$ içeriği KORUNUR, sadece boşluk normalize edilir
+  unicode NFKC · ligatür açma (ﬁ→fi, ﬂ→fl, ﬀ→ff)
+  tırnak/tire birleştirme: “ ” ‘ ’ → " ' ; – — ‐ → -
+  satır sonu tirelemesi kapatma: "integ-\nral" → "integral"
+  boşluk dizileri → tek boşluk ; üstbilgi/altbilgi şeritlerini at (düzen analizi kutularıyla)
+  Türkçe: casefold() — lower() DEĞİL (i/İ tuzağı)
+  $...$ içeriği KORUNUR, sadece boşluğu normalize edilir
 ```
 
 ### 1.3 Boru hattı — beş kapı, sırayla
@@ -86,8 +84,8 @@ V5  NUMBER-GUARD    claim_text'teki her sayı, tarih, birim, özel isim ve matem
                     Geçmeyen tek bir sayı bile → atom `doğrulanamadı(sayı)`.
 ```
 
-`V5` küçük ama en yüksek getirili kapıdır: LLM'lerin en sık uydurduğu şey cümlenin
-tamamı değil, cümlenin **içindeki sayıdır** ("%23" → "%32", "1908" → "1912").
+`V5` en yüksek getirili kapıdır: LLM'ler cümlenin tamamını değil, **içindeki sayıyı**
+uydurur ("%23" → "%32", "1908" → "1912").
 
 ### 1.4 Karar tablosu
 
@@ -106,26 +104,20 @@ tamamı değil, cümlenin **içindeki sayıdır** ("%23" → "%32", "1908" → "
 ```python
 def verify_anchor(atom, book):
     page = N(book.page_text(atom.anchor.page_index))
-    q    = N(atom.quote)
-
-    span = exact_span(page, q) or fuzzy_span(page, q)   # (span, score)
-    if span is None or span.score < 0.75:
-        return REJECT("quote_not_in_page", score=span.score if span else 0)
-    atom.anchor.char_span = span.range                   # düzeltilmiş span geri yazılır
-    if 0.75 <= span.score < 0.92:
-        return LABEL("doğrulanamadı(ocr_şüphesi)", route=OCR_QUEUE)
+    span = exact_span(page, N(atom.quote)) or fuzzy_span(page, N(atom.quote))
+    if span is None or span.score < 0.75:  return REJECT("quote_not_in_page")
+    atom.anchor.char_span = span.range                  # düzeltilmiş span geri yazılır
+    if span.score < 0.92:  return LABEL("doğrulanamadı(ocr_şüphesi)", route=OCR_QUEUE)
 
     window = N(book.window(atom.anchor.page_index, radius=1))
-
     if not numbers_and_symbols_subset(atom.claim_text, window):
         return LABEL("doğrulanamadı(sayı)")
-
     if lexical_cover(atom.claim_text, window) >= 0.45:
         return LABEL("doğrulandı(alıntı)")
 
-    nli = NLI(premise=window, hypothesis=atom.claim_text)   # kalibre edilmiş sınıflandırıcı
-    if nli.contradiction > 0.15:  return LABEL("doğrulanamadı(çelişki)", route=HUMAN_QUEUE)
-    if nli.entailment  >= 0.90:   return LABEL("desteklendi(NLI)")
+    nli = NLI(premise=window, hypothesis=atom.claim_text)   # kalibre, ayrı model
+    if nli.contradiction > 0.15: return LABEL("doğrulanamadı(çelişki)", route=HUMAN_QUEUE)
+    if nli.entailment  >= 0.90:  return LABEL("desteklendi(NLI)")
     return LABEL("doğrulanamadı(destek yok)")
 ```
 
@@ -155,7 +147,7 @@ formula_atom {
 ```
 
 `sympy_src` veya `symbols[].unit` eksikse formül **doğrulanamaz** kabul edilir; tahmin
-edilmez. Birim uydurmak, formül uydurmaktan daha sinsi bir hatadır.
+edilmez — birim uydurmak formül uydurmaktan daha sinsidir.
 
 ### 2.2 Dört kontrol
 
@@ -190,18 +182,18 @@ kabul: |A-B| ≤ 1e-30 + 1e-25 * max(|A|,|B|)   (bağıl tolerans)
 başarısız nokta ≥ 1 → FORMÜL YANLIŞ (veya hipotez eksik) → karşı-örneği sakla
 tanımsız nokta > %20 → örnekleme alanı hatalı, domain çıkarımını gözden geçir
 ```
-200 nokta *kanıt değildir*, ama tek bir karşı örnek **çürütmedir** — ve asimetri bizim
-lehimizedir. Bu yüzden `doğrulandı(sembolik)` etiketi sadece (a)+(b) geçtiğinde verilir;
-sadece (c) geçerse etiket `desteklendi(sayısal)` olur (arayüzde `desteklendi` ailesinde gösterilir).
+200 nokta *kanıt değildir*, ama tek bir karşı örnek **çürütmedir**; asimetri lehimizedir.
+Bu yüzden `doğrulandı(sembolik)` yalnız (a)+(b) geçince verilir; sadece (c) geçerse
+etiket `desteklendi(sayısal)` olur.
 
 **(d) Sınır durum testleri.** Her formül için otomatik üretilen 6 test:
 ```
-1. Sıfır testi:        her değişken → 0 (tanımlıysa)
-2. Tekillik taraması:  denominator(expr) == 0 çözümleri; her kök için limit hesapla
-3. Sonsuzluk davranışı: limit(expr, x, oo) ve limit(expr, x, -oo) sonlu/beklenen mi
-4. İşaret testi:       domain=positive sembollerle sonuç işareti metindeki iddiayla uyumlu mu
-5. Özel durum:         bilinen indirgeme (v<<c → klasik limit, x→0 → Taylor 1. terim)
-6. Ölçek değişmezliği: boyutsuz grup varsa (Reynolds vb.) ölçekleme altında korunuyor mu
+1. Sıfır testi:      her değişken → 0 (tanımlıysa)
+2. Tekillik:         denominator(expr)==0 kökleri; her kök için limit
+3. Sonsuzluk:        limit(expr, x, ±oo) beklenen mi
+4. İşaret:           domain=positive iken sonucun işareti metindeki iddiayla uyumlu mu
+5. Özel durum:       bilinen indirgeme (v<<c → klasik limit; x→0 → Taylor 1. terim)
+6. Ölçek değişmezliği: boyutsuz grup (Reynolds vb.) ölçekleme altında korunuyor mu
 ```
 Bulunan her tekillik atoma `singularities: [...]` olarak yazılır ve bu, önkoşul DAG'ında
 "bu formül x=L'de geçersiz" uyarısına dönüşür.
@@ -225,9 +217,9 @@ Brifing Kural 3 gereği kitap reddedilmez — sadece o *atom* susturulur.
 
 ## 3. Teorem bütünlüğü — sessiz hipotez düşürme
 
-Bu, sistemin en tehlikeli hata sınıfıdır. "Her sürekli fonksiyon düzgün süreklidir"
-cümlesi, "kompakt kümede" düşünce yanlış olur ve **hiçbir string eşlemesi bunu yakalamaz** —
-çünkü cümlenin her kelimesi kitapta geçiyordur.
+Sistemin en tehlikeli hata sınıfı. "Her sürekli fonksiyon düzgün süreklidir" cümlesi
+"kompakt kümede" düşünce yanlış olur ve **hiçbir string eşlemesi bunu yakalamaz** —
+cümlenin her kelimesi kitapta geçiyordur.
 
 ### 3.1 Zorunlu ayrık şema
 
@@ -252,29 +244,28 @@ teorem yoktur; gerçekten yoksa o bir *tanım* veya *aksiyom*dur, farklı atom t
 **H1 — Koşul sözlüğü taraması (deterministik, ucuz).**
 Alanına göre bakım yapılan bir tetikleyici sözlük tutulur:
 ```
-analiz    : kompakt, sınırlı, kapalı, sürekli, düzgün, ölçülebilir, integrallenebilir,
-            hemen her yerde, mutlak yakınsak, monoton, Lipschitz, türevlenebilir
-cebir     : değişmeli, birimli, sonlu üretilmiş, Noetherian, karakteristik ≠ 2, tersinir
-olasılık  : bağımsız, aynı dağılımlı (i.i.d.), sonlu varyans, ölçülebilir, sıfır ortalama
-lineer cbr: pozitif tanımlı, simetrik, tam ranklı, tekil olmayan, ortonormal
-mühendis. : kararlı durum, laminer, adyabatik, küçük genlik, rijit, izotropik
+analiz : kompakt, sınırlı, kapalı, düzgün, ölçülebilir, integrallenebilir,
+         hemen her yerde, mutlak yakınsak, monoton, Lipschitz, türevlenebilir
+cebir  : değişmeli, birimli, sonlu üretilmiş, Noetherian, karakteristik ≠ 2, tersinir
+olasılık : bağımsız, aynı dağılımlı (i.i.d.), sonlu varyans, sıfır ortalama
+lin.cebir: pozitif tanımlı, simetrik, tam ranklı, tekil olmayan, ortonormal
+mühendislik: kararlı durum, laminer, adyabatik, küçük genlik, rijit, izotropik
 ```
 Kural: bu sözcüklerden biri, teoremin çapa penceresinde (±3 cümle) geçiyor **ve**
 `hypotheses[]` içinde geçmiyorsa → `hipotez_şüphesi` bayrağı. Kesin değil ama recall'ü yüksek.
 
 **H2 — İki geçişli, çapraz-görmez çıkarım (independent re-extraction).**
-Geçiş 1: teoremin ifadesini çıkarır. Geçiş 2: **ayrı bir çağrı**, ayrı prompt, geçiş 1'in
-çıktısını görmeden, aynı sayfadan *sadece koşulları* çıkarır ("bu ifadenin geçerli olması
-için sayfada belirtilen tüm ön koşulları listele"). İki listenin farkı (`H2 \ H1`) doğrudan
-düşürülmüş hipotez adayıdır. Fark boş değilse insan kuyruğu değil, **otomatik birleştirme**
-yapılır ve birleşik hipotezler yeniden V1–V5'ten geçirilir.
+Geçiş 1 teoremin ifadesini çıkarır. Geçiş 2 **ayrı bir çağrıdır**: geçiş 1'in çıktısını
+görmeden aynı sayfadan *sadece koşulları* listeler. Fark (`H2 \ H1`) doğrudan düşürülmüş
+hipotez adayıdır; boş değilse **otomatik birleştirilir** ve birleşik hipotezler yeniden
+V1–V5'ten geçirilir.
 
 **H3 — Karşı-örnek bankası (en güçlü ve tamamen mekanik).**
 Kanonik teoremler için "hipotez X düşerse çöker" karşı örnekleri elle küratörlenmiş bir
-bankada tutulur (ilk sürüm: analiz + lineer cebir + olasılıktan ~150 giriş). Sistem bir
-teorem atomunu bankadaki bir imzayla eşleştirirse (isim veya sonuç cümlesi benzerliği),
-bankadaki hipotez listesini **beklenen küme** olarak alır ve eksikleri sayar.
-Eksik varsa → `doğrulanamadı(hipotez eksik)`, eksik hipotez adı kullanıcıya gösterilir.
+bankada tutulur (ilk sürüm: analiz + lineer cebir + olasılıktan ~150 giriş). Teorem atomu
+bankadaki bir imzayla eşleşirse (isim veya sonuç benzerliği), bankanın hipotez listesi
+**beklenen küme** olur; eksik varsa → `doğrulanamadı(hipotez eksik)` ve eksik hipotezin
+adı kullanıcıya gösterilir.
 
 **H4 — Sayısal çürütme geri beslemesi.**
 §2.2(c) bir karşı örnek bulduğunda, bu karşı örneğin hangi kısıtı ihlal ettiği aranır
@@ -306,8 +297,8 @@ bir kısıttır: "bir ekran = bir karar" doktrini hipotez gizlemeyi meşrulaşt�
 | `desteklendi(NLI)` | span ✓ + V5 ✓ + NLI entail ≥0.90 (ve sayısal-sağlama sonuçları) | "Kitap bunu söylüyor ama başka kelimelerle; bu bizim ifademiz." |
 | `doğrulanamadı` | Yukarıdakilerin hiçbiri, veya çelişki/timeout/OCR şüphesi | "Emin değiliz. Ham metne kendin bak." |
 
-Ara etiket, yüzde, yıldız, 0–1 skoru **yoktur**. Dört kova, bitti. Kalibre edilmemiş bir
-sayı göstermek, hiçbir şey göstermemekten kötüdür.
+Ara etiket, yüzde, yıldız, 0–1 skoru **yoktur**. Dört kova, bitti — kalibre edilmemiş bir
+sayı göstermek hiçbir şey göstermemekten kötüdür.
 
 ### 4.2 Arayüz talimatı (`06-arayuz.md` için normatif)
 
@@ -353,14 +344,14 @@ Beş bağımsız katman. Bağımsızlık kritik: aynı hata modunu paylaşan iki
 | **D5** | Tuzak (canary) ve negatif kontrol | Uyum eğilimi (sycophancy) ve boşluk doldurma: kitapta olmayan bölüm/kavram sorulur, model "bulursa" o çıkarım turu şüpheli işaretlenir | Sadece **çıkarım turunun** sağlığını ölçer, tek tek atomları değil | Çok düşük (tur başına 3-5 sorgu) |
 | **D6** | Kullanıcı geri bildirimi ("bu yanlış" tek tık) | Uzman gözünün gördüğü her şey; uzun kuyruk | Kullanıcının bilmediği alan; sessiz kullanıcı | Sıfır (asenkron) |
 
-**Katman tasarımı gerekçesi:** D1 ve D2 deterministiktir ve modelden bağımsızdır — bunlar
-zemindir. D3 model kaynaklı gürültüyü siler ama model kaynaklı **önyargıyı** silemez;
-onu D4 (dış tutarlılık) ve D5 (davranışsal sınama) yakalar. D6 uzun vadede altın kümeyi besler.
+**Gerekçe:** D1–D2 deterministik ve modelden bağımsızdır — zemin budur. D3 model kaynaklı
+*gürültüyü* siler ama *önyargıyı* silemez; onu D4 (dış tutarlılık) ve D5 (davranışsal sınama)
+yakalar. D6 uzun vadede altın kümeyi besler.
 
-**AÇIK SORU:** D1'in kaçırdığı "yanlış bağlam" hatası (yazarın reddettiği bir görüşü
-yazarın görüşü diye sunmak) için bir polarite/atıf detektörü gerekiyor. İlk sürümde
-"göre", "iddia eder", "savunanlar", "yanılgı" gibi atıf işaretleyicileri sayfa penceresinde
-aranıp atoma `attribution_risk: true` düşülmesini öneriyorum; tam çözüm sürüm 2.
+**AÇIK SORU:** D1'in kaçırdığı "yanlış bağlam" hatası (yazarın reddettiği görüşü ona atfetmek)
+için polarite/atıf detektörü gerekiyor. İlk sürümde "göre", "iddia eder", "savunanlar",
+"yanılgı" gibi atıf işaretleyicileri pencerede aranıp atoma `attribution_risk: true`
+düşülmesini öneriyorum; tam çözüm sürüm 2.
 
 ---
 
@@ -372,14 +363,13 @@ aranıp atoma `attribution_risk: true` düşülmesini öneriyorum; tam çözüm 
 göre ağırlıklandırılır: 5 matematik/mühendislik, 2 tıp, 2 tarih/felsefe, 1 sanat,
 1 kişisel gelişim, 1 **kasıtlı kötü tarama** (§7 testi için).
 
-**Sayfa seçimi (yanlılık önleme):** rastgele değil, **tabakalı**: her kitaptan
-5 yoğun-matematik sayfası, 5 düz nesir, 5 tablo/şekil içeren, 5 rastgele. Rastgele
-örnekleme matematik sayfalarını yeterince temsil etmez ve tam da orada hata yapıyoruz.
+**Sayfa seçimi:** rastgele değil **tabakalı** — her kitaptan 5 yoğun-matematik, 5 düz nesir,
+5 tablo/şekilli, 5 rastgele sayfa. Rastgele örnekleme matematik sayfalarını temsil etmez,
+hata da tam orada.
 
-**Etiketleme protokolü:** her sayfa 2 bağımsız insan tarafından atomlaştırılır
-(iddia/tanım/teorem/yöntem/formül/anekdot + çapa). Anlaşmazlık üçüncü kişi tarafından çözülür.
-Kabul kapısı: atom sınırlarında Cohen κ ≥ 0.70; altında ise **rehber yeniden yazılır**,
-veri kümesi kabul edilmez. Ölçemediğimiz tutarlılıkla sistem ölçemeyiz.
+**Etiketleme:** her sayfa 2 bağımsız insan tarafından atomlaştırılır (tip + çapa),
+anlaşmazlığı üçüncü kişi çözer. Kabul kapısı: atom sınırlarında Cohen κ ≥ 0.70; altındaysa
+**rehber yeniden yazılır**, veri kümesi kabul edilmez.
 
 **Ek küme — çekişmeli (adversarial) set, 150 örnek, elle üretilir:**
 ```
@@ -419,14 +409,14 @@ Atom eşlemesi için: gömme benzerliği ≥ 0.85 **ve** çapa aynı sayfada →
 | False quarantine rate | ≤ 8% | Uyarı; eşikler gevşetilir |
 | Etiket monotonluğu | doğrulandı > desteklendi > doğrulanamadı, her ikili arasında ≥ 10 puan fark | Etiket şeması yeniden tasarlanır |
 
-**Recall neden düşük tutulabilir:** ürün her fikri çıkarmak zorunda değil, çıkardığını
-doğru çıkarmak zorunda. Precision için recall feda edilir — tersi asla.
+**Recall neden düşük tutulabilir:** ürün her fikri çıkarmak zorunda değil, çıkardığını doğru
+çıkarmak zorunda. Precision için recall feda edilir — tersi asla.
 
 ### 6.4 Regresyon kapısı (CI)
 
-Her PR'de altın kümenin sabit 200 atomluk alt kümesi + tüm çekişmeli küme koşar.
-Bütçe: ≤ 6 dakika, ≤ 2 USD. Hallucination rate bir önceki `main`'e göre **artarsa** merge bloklanır.
-Kural: doğrulama boru hattına dokunan hiçbir PR eval koşmadan birleştirilemez.
+Her PR'de altın kümenin sabit 200 atomluk alt kümesi + tüm çekişmeli küme koşar
+(bütçe: ≤ 6 dk, ≤ 2 USD). Hallucination rate bir önceki `main`'e göre **artarsa** merge
+bloklanır. Doğrulama boru hattına dokunan hiçbir PR eval koşmadan birleştirilemez.
 
 ---
 
@@ -460,25 +450,23 @@ health = 0.35*s1 + 0.15*(1-s2) + 0.20*(1-s3) + 0.10*f(s4) + 0.10*(1-s5) + 0.10*s
 ### 7.3 Kırık LaTeX / matematik
 
 ```
-1. Parse kapısı: latex2sympy → SymPy AST. Başarısızsa formül atomu ÜRETİLMEZ,
-   bunun yerine "matematiksel içerik var, okunamadı" işareti bırakılır.
-2. Yaygın OCR→LaTeX düzeltme sözlüğü (deterministik, sınırlı, kayıt altında):
-   "∫" ↔ "f", "Σ" ↔ "E", "≤" ↔ "<", "α" ↔ "a", "μ" ↔ "u", "−" ↔ "-", "'" ↔ "′"
-   Her düzeltme atoma `ocr_repairs: [...]` olarak yazılır; ≥3 düzeltme yapıldıysa
-   formül otomatik `doğrulanamadı(ocr)` olur.
-3. Onarım ASLA LLM'e "bunu düzelt" diye bırakılmaz — LLM burada makul ama yanlış
-   formül üretmekte çok iyidir ve bu hata tipi hiçbir katmana yakalanmaz.
-4. Boyut kontrolü (§2.2a) burada ikinci görev yapar: OCR bozulmuş formüllerin çoğu
-   boyutsal olarak tutarsızdır. Boyut kapısı, sessiz OCR hatasının en iyi dedektörüdür.
+1. Parse kapısı: latex2sympy → SymPy AST. Başarısızsa formül atomu ÜRETİLMEZ;
+   yerine "matematiksel içerik var, okunamadı" işareti bırakılır.
+2. Deterministik ve sınırlı OCR→LaTeX düzeltme sözlüğü, kayıt altında:
+   "∫"↔"f", "Σ"↔"E", "≤"↔"<", "α"↔"a", "μ"↔"u", "−"↔"-", "'"↔"′".
+   Her düzeltme atoma `ocr_repairs: [...]` yazılır; ≥3 düzeltme → `doğrulanamadı(ocr)`.
+3. Onarım ASLA LLM'e bırakılmaz — LLM burada makul ama yanlış formül üretmekte çok iyidir
+   ve bu hata tipi hiçbir katmana yakalanmaz.
+4. Boyut kontrolü (§2.2a) burada ikinci görev yapar: bozulmuş formüllerin çoğu boyutsal
+   olarak tutarsızdır; boyut kapısı sessiz OCR hatasının en iyi dedektörüdür.
 ```
 
 ### 7.4 Sayfa numarası kayması (page offset)
 
-Basılı sayfa numarası ile PDF indeksi arasındaki fark otomatik kalibre edilir: ilk 30
-sayfada üstbilgi/altbilgi'den sayı çıkarılır, mod bulunur, offset sabitlenir; roma
-rakamlı ön bölüm ayrı ele alınır. Offset ≥ 3 sayfada tutarsızsa kitap `çapa_güvensiz`
-işaretlenir ve **tüm** atomları `desteklendi(NLI)` tavanına iner. Yanlış sayfa numarası
-veren bir çapa, çapasızlıktan kötüdür.
+Basılı sayfa no ile PDF indeksi farkı otomatik kalibre edilir: ilk 30 sayfada
+üstbilgi/altbilgi'den sayı çıkarılır, mod alınır, offset sabitlenir; roma rakamlı ön bölüm
+ayrı ele alınır. Offset ≥ 3 sayfada tutarsızsa kitap `çapa_güvensiz` işaretlenir ve **tüm**
+atomları `desteklendi(NLI)` tavanına iner. Yanlış sayfa numarası veren çapa, çapasızlıktan kötüdür.
 
 ---
 
@@ -486,10 +474,10 @@ veren bir çapa, çapasızlıktan kötüdür.
 
 ### 8.1 Varsayımlar
 
-400 sayfalık teknik kitap, ≈180.000 token, ≈1.200 atom, ≈120 formül, ≈60 teorem.
-Fiyat birim varsayımı (`AÇIK SORU:` yayın öncesi güncel fiyat listesinden doğrulanmalı):
-küçük model ≈ 1 USD / M girdi-token, büyük model ≈ 3 USD / M girdi-token mertebesi.
-Aşağıdaki rakamlar **mertebe tahminidir**, sözleşme değildir.
+400 sayfalık teknik kitap ≈ 180.000 token, ≈1.200 atom, ≈120 formül, ≈60 teorem.
+`AÇIK SORU:` birim fiyat varsayımı (küçük model ≈ 1 USD/M girdi-token, büyük model
+≈ 3 USD/M mertebesi) yayın öncesi güncel fiyat listesinden **doğrulanmalıdır** — bu belgenin
+kendi doktrini gereği, doğrulanmamış sayı `doğrulanamadı` etiketlidir. Aşağısı mertebe tahminidir.
 
 ### 8.2 Katman katman ek maliyet (kitap başına)
 
@@ -509,9 +497,9 @@ Aşağıdaki rakamlar **mertebe tahminidir**, sözleşme değildir.
 | D3 tam çift-çıkarım | **örnekleme: %5 atom** | LLM | ≈0.15 USD |
 | **Toplam ek** | | | **≈0.30–0.50 USD/kitap, ≈10-15 dk CPU** |
 
-Referans: sindirim katmanının kendisi (180K token okuma + atom üretimi) kitap başına
-kabaca 1.5–3 USD mertebesindedir. **Doğrulama, sindirimin %15–25'i kadar ek maliyet getirir.**
-Bu, ürünün tek farklılaştırıcısı için ödenecek en ucuz bedeldir.
+Referans: sindirimin kendisi (180K token okuma + atom üretimi) kitap başına kabaca
+1.5–3 USD mertebesindedir. **Doğrulama, sindirimin %15–25'i kadar ek yük getirir** —
+ürünün tek farklılaştırıcısı için ödenecek en ucuz bedel.
 
 ### 8.3 Her atoma mı, örnekleme mi? — karar kuralı
 
@@ -532,9 +520,9 @@ HER ATOMA (istisnasız):
 
 ### 8.4 Bütçe koruması
 
-Doğrulama maliyeti sindirim maliyetinin %40'ını aşarsa boru hattı durur ve olay kaydı
-üretilir. Sınırsız doğrulama bütçesi, sınırsız yeniden deneme demektir; yeniden denemenin
-kendisi bir hata sinyalidir ve gizlenmemelidir.
+Doğrulama maliyeti sindirimin %40'ını aşarsa boru hattı durur ve olay kaydı üretilir.
+Sınırsız doğrulama bütçesi sınırsız yeniden deneme demektir; yeniden denemenin kendisi bir
+hata sinyalidir ve gizlenmemelidir.
 
 ---
 
@@ -554,8 +542,7 @@ kendisi bir hata sinyalidir ve gizlenmemelidir.
 1. `AÇIK SORU:` Türkçe NLI kalitesi ölçülmedi; eşikler dil bazında ayrılmalı mı?
 2. `AÇIK SORU:` "Yanlış bağlam" (yazarın çürüttüğü görüşü ona atfetme) için polarite
    detektörünün tasarımı sürüm 2'ye bırakıldı — ölçülmemiş bir risk.
-3. `AÇIK SORU:` Kitabın **kendisi yanlışsa** ne olur? Şu an sistem kitaba sadıktır ve
-   bunu doğru sayar. D4 çelişki kenarı bunu bir gün yakalar; ama "hangi kitap haklı"
-   kararı bu belgenin kapsamı dışında ve `07-transfer.md` ile ortak çözülmeli.
-4. `AÇIK SORU:` Karşı-örnek bankasının bakım maliyeti (150 girdi × alan uzmanı saati)
-   bütçelenmedi.
+3. `AÇIK SORU:` Kitabın **kendisi yanlışsa**? Sistem şu an kitaba sadıktır. D4 çelişki
+   kenarı bunu yakalar ama "hangi kitap haklı" kararı bu belgenin kapsamı dışıdır;
+   `07-transfer.md` ile ortak çözülmeli.
+4. `AÇIK SORU:` Karşı-örnek bankasının bakım maliyeti (≈150 girdi × alan uzmanı saati) bütçelenmedi.
