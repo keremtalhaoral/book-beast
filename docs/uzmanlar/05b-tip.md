@@ -36,7 +36,7 @@ Ortak atom şemasının (`01-bilgi-modeli.md`) `type: empirical_claim` uzantıs�
 | 12 | `evidence_level` | enum | ✔ | L1–L6, §2. **Türetilmiş alan**, model doğrudan yazmaz. |
 | 13 | `warning_flags` | liste | ✔ | §3 sinyalleri. Boş liste geçerli bir değerdir. |
 
-Ek olarak her ampirik atom ortak alanları taşır: `book_id`, `chapter`, `page_anchor` (Kural 2 — çapasız üretim yasak), `quote` (kitaptan birebir alıntı, ≤2 cümle).
+Ek ortak alanlar: `book_id`, `chapter`, `page_anchor` (Kural 2 — çapasız üretim yasak), `quote` (birebir alıntı, ≤2 cümle).
 
 ### 1.2 Kaynak zinciri alanı
 
@@ -50,9 +50,7 @@ citation_chain:
 
 `resolved: false` **hata değil**, veridir: kitabın kaynak disiplininin ölçüsüdür. Kitap düzeyinde `unresolvable_citation_ratio` metriği bundan hesaplanır ve kitap kartında görünür.
 
-### 1.3 Karar: PICO zorlanır, uydurulmaz
-
-Model P/I/C/O alanlarını **metinden çıkarmakla** yükümlü; çıkaramadığında `[bildirilmemiş]` yazar. Uydurma kesinlikle yasak — çünkü eksik komparatör (C) bilgisinin kendisi, en güçlü sahte bilim sinyallerinden biridir (§3.1-S4) ve doldurulursa sinyal kaybolur.
+**Karar: PICO zorlanır, uydurulmaz.** Model alanları metinden çıkarır; çıkaramazsa `[bildirilmemiş]` yazar. Uydurma yasak — eksik komparatörün kendisi en güçlü sahte bilim sinyallerinden biridir (§3.1-S4) ve doldurulursa sinyal kaybolur.
 
 ---
 
@@ -93,25 +91,24 @@ evidence_level(atom):
     return L
 ```
 
-**Karar: model seviye atamaz, sinyal üretir.** LLM'in görevi tasarım kelimelerini ve sayıları çıkarmak; seviye bu deterministik kuralla hesaplanır. Sebep: aynı paragrafın iki farklı çağrıda L2/L4 alması kullanıcı güvenini bitirir; kural tabanlı atama tekrarlanabilir.
+**Karar: model seviye atamaz, sinyal üretir.** LLM tasarım kelimelerini ve sayıları çıkarır; seviye deterministik kuralla hesaplanır — aynı paragrafın iki çağrıda L2/L4 alması kullanıcı güvenini bitirir.
 
 ### 2.3 Kitap kaynak vermiyorsa
 
 Popüler kişisel gelişim kitaplarının çoğu bu durumda. Politika:
 
 1. Atom **yine üretilir** (Kural 3 — reddetme yok).
-2. `evidence_level = L5` (mekanizma/otorite dili) veya `L6` (anekdot).
-3. `warning_flags` içine `S6: kaynaksız` girer.
-4. Arayüzde iddia **soluk gri gövde + turuncu rozet** ile görünür; okunabilir, ama görsel olarak diğerlerinden ayrılır.
-5. **Yine de transfer katmanına girer** — kaynaksız bir fikir kötü kanıttır ama iyi bir *hipotez* olabilir; `07-transfer.md` bunları `hypothesis_only` etiketiyle alır.
+2. `evidence_level = L5` (mekanizma/otorite dili) veya `L6` (anekdot); `warning_flags += S6`.
+3. Arayüzde soluk gri gövde + turuncu rozet — okunabilir, görsel olarak ayrı.
+4. **Yine de transfer katmanına girer**: kaynaksız fikir kötü kanıttır ama iyi bir *hipotez* olabilir; `07-transfer.md` bunları `hypothesis_only` etiketiyle alır.
 
-> Not: Kitap kaynak veriyor ama kaynak çözülemiyorsa (dipnotsuz "araştırmalar gösteriyor ki") bu L5 değil, **L4-tavanlı belirsiz** sayılır ve `S6` yerine `S7: izlenemez kaynak` bayrağı alır.
+> Kaynak var ama çözülemiyorsa (dipnotsuz "araştırmalar gösteriyor ki") bu L5 değil **L4-tavanlı belirsiz**, bayrak `S6` değil `S7`.
 
 ---
 
 ## 3. ⚠️ Sahte bilim filtresi
 
-Bu bölüm **sansür değil, etiketleme** tasarlar. Sistem hiçbir iddiayı gizlemez, kısaltmaz veya "bu yanlış" demez. Sadece iddianın yapısal zayıflıklarını görünür kılar.
+Bu bölüm **sansür değil, etiketleme** tasarlar: hiçbir iddia gizlenmez, sadece dayanağının yapısal zayıflığı görünür kılınır.
 
 ### 3.1 Sinyal listesi
 
@@ -143,7 +140,7 @@ skor 4–6      → "zayıf"     (turuncu rozet)
 skor 7+       → "çok zayıf" (kırmızı rozet + zorunlu açılır liste)
 ```
 
-Skor **atom düzeyinde** hesaplanır, ama kitap kartında **ortalaması** gösterilir: "Bu kitabın 214 iddiasının 61'i zayıf kanıtlı."
+Skor atom düzeyinde hesaplanır, kitap kartında toplanır: "Bu kitabın 214 iddiasının 61'i zayıf kanıtlı."
 
 ### 3.3 Etiketleme dili — sözlük
 
@@ -170,23 +167,19 @@ Bu ürünün sesi budur; **kelimeler sabittir**, model doğaçlama yapmaz.
 - ✗ "Bu bölümü okuma" — Kural 3 ihlali
 - ✗ "Ancak modern araştırmalar…" — sistemin kendi kanıt getirmesi; kaynak zinciri kopar (Kural 2)
 
-**Ton kuralı:** etiket **iddiayı değil, iddianın dayanağını** tanımlar. Cümlenin öznesi hep kanıttır, yazar değil. "Yazar abartıyor" değil; "kanıt tek çalışma".
+**Ton kuralı:** cümlenin öznesi hep kanıttır, yazar değil. "Yazar abartıyor" değil; "kanıt tek çalışma".
 
-### 3.4 Neden sansür yok — gerekçe
-
-Kişisel gelişim kitabındaki zayıf kanıtlı bir iddia yanlış olabilir ama **hipotez olarak değerli** olabilir; kullanıcı mühendis, hipotezi kendi alanında test edebilir. Sistemin işi kullanıcının yerine karar vermek değil, **karar için gereken metaveriyi bedava vermek**. Sansür ürünü bir filtreye indirir; etiketleme onu bir enstrümana çevirir.
+**Neden sansür yok:** zayıf kanıtlı iddia yanlış olabilir ama **hipotez olarak değerli** olabilir; kullanıcı mühendis, kendi alanında test edebilir. Sistemin işi kullanıcı yerine karar vermek değil, karar için gereken metaveriyi bedava vermek. Sansür ürünü filtreye indirir; etiketleme enstrümana çevirir.
 
 ---
 
 ## 4. Tekrarlanabilirlik krizi
 
-### 4.1 Problem
+**Problem.** 2011 sonrası psikoloji ve beslenmede çok sayıda ünlü bulgu çöktü: ego tükenmesi (ego depletion), güç duruşu (power posing), hazırlama etkileri (social priming), yağ-kalp hipotezinin katı biçimi, mikrobiyom-tek çözüm anlatıları. 2008–2014 arası yazılmış popüler kitaplar bu bulguları **kesin gerçek** olarak aktarır.
 
-2011 sonrası psikoloji ve beslenmede çok sayıda ünlü bulgu çöktü: ego tükenmesi (ego depletion), güç duruşu (power posing), hazırlama etkileri (social priming), yağ-kalp hipotezinin katı biçimi, mikrobiyom-tek çözüm anlatıları. 2008–2014 arası yazılmış popüler kitaplar bu bulguları **kesin gerçek** olarak aktarır.
+### 4.1 `replication_risk` alanı
 
-### 4.2 Mekanizma: `replication_risk` alanı
-
-Ampirik atoma **türetilmiş** bir alan daha eklenir:
+Türetilmiş bir alan daha:
 
 ```
 replication_risk ∈ {low, moderate, high, known_failed}
@@ -214,9 +207,9 @@ if çalışma_yılı >= 2016 and ön_kayıt_belirtisi:
     risk -= 1 kademe
 ```
 
-**(c) İsim listesi (known-failed registry)** — proje içinde bakımlı, ~150 satırlık JSON: bulgu adı → durum → tekrarlama denemesi referansı. Ego tükenmesi, güç duruşu, Macbeth etkisi, kalem-ağızda gülümseme, glikoz-irade, çikolata-kilo (kasıtlı sahte çalışma), yaşlılık-hazırlama.
+**(c) İsim listesi (known-failed registry)** — bakımlı ~150 satırlık JSON: bulgu → durum → tekrarlama referansı. Ego tükenmesi, güç duruşu, Macbeth etkisi, kalem-gülümseme, glikoz-irade, yaşlılık-hazırlama.
 
-### 4.3 Örnek: 2010 kitabında "ego tükenmesi"
+### 4.2 Örnek: 2010 kitabında "ego tükenmesi"
 
 Sistem şunu yapar:
 
@@ -236,11 +229,7 @@ Arayüzde iddia **çizilmez, silinmez**. Altına tek satır düşer:
 
 Son cümle önemli: sistem **etkinin yayılımını** işaretler — o bölümdeki diğer atomlar `depends_on` kenarıyla bu atoma bağlıysa hepsi ⟳ devralır (`02-yenilik-ve-graf.md` graf kenarları üzerinden yayılım).
 
-### 4.4 Karar: tarih tek başına suç değil
-
-Eski = yanlış değil. `replication_risk` yalnızca **alan katsayısı düşükse** tarihe bakar. 1985 tarihli bir farmakokinetik bulgusu için tarih penceresi çalışmaz; 2009 tarihli bir hazırlama etkisi için çalışır.
-
-**AÇIK SORU:** Alan katsayısı tablosu ve known-failed listesi bakım yükü yaratır. Yılda bir elle güncelleme mi, yoksa kullanıcı bildirimi (crowd flag) mı? İlk sürümde elle, ~150 kayıtla başlanması öneriliyor.
+**Karar: tarih tek başına suç değil.** Eski ≠ yanlış. `replication_risk` tarihe yalnızca **alan katsayısı düşükse** bakar: 1985 farmakokinetik bulgusunda tarih penceresi çalışmaz, 2009 hazırlama etkisinde çalışır.
 
 ---
 
@@ -258,8 +247,7 @@ Eski = yanlış değil. `replication_risk` yalnızca **alan katsayısı düşük
 - Kanıt seviyesini, örneklem büyüklüğünü, etki büyüklüğünü gösterir.
 - İki kitabın çelişkisini gösterir (§6).
 - "Bu iddia hangi popülasyonda ölçüldü" sorusunu cevaplar.
-- Kullanıcının kendi notunu iddianın yanına kaydetmesine izin verir.
-- Kullanıcıya **doktoruna sorabileceği soruları** üretir — bu tavsiye değil, okuma çıktısıdır:
+- Kullanıcıya **doktoruna sorabileceği soruları** üretir — tavsiye değil, okuma çıktısı:
   > "Kitap 45–70 yaş tip-2 diyabetlilerde ölçmüş. Doktoruna sorulabilir: bu popülasyon benim durumumu kapsıyor mu?"
 
 ### 5.3 Sistem NE YAPMAZ (mutlak)
@@ -295,7 +283,7 @@ Eşleşme → **normal cevap üretimi iptal**, yerine sabit yanıt bileşeni:
 >
 > [ Kitabın bu konudaki 4 iddiasını göster ]   [ Doktora sorulacak soruları çıkar ]
 
-Kritik: kapı **sistem cevabını değil, üretimi** durdurur. Model önce cevabı yazıp sonra "ama tavsiye değildir" eklemez — o cevap hiç üretilmez.
+Kritik: kapı üretimin **önünde** durur. Model önce cevabı yazıp sonra "ama tavsiye değildir" eklemez — o cevap hiç üretilmez.
 
 ### 5.5 Arayüzde görünüm
 
@@ -307,11 +295,9 @@ Kritik: kapı **sistem cevabını değil, üretimi** durdurur. Model önce cevab
 | Kapı tetiklendiğinde | §5.4 bileşeni, tam genişlik, kırmızı sol kenar |
 | Ayarlar | "Sağlık içeriği uyarıları" — **kapatılamaz**, sadece görünür |
 
-**Karar: uyarı bandı kapatılamaz.** Kapatılabilir uyarı yok hükmündedir; ürün burada estetiği güvenliğe feda eder.
+**Karar: uyarı bandı kapatılamaz** — kapatılabilir uyarı yok hükmündedir; ürün burada estetiği güvenliğe feda eder.
 
-### 5.6 Kural 3 ile çelişki var mı?
-
-Hayır. Kural 3 "sistem kitabı reddetmez" der — **kitap** reddedilmez, kitap tam olarak sindirilir ve aktarılır. Reddedilen şey **kullanıcının kişisel klinik sorusu**dur; bu bir içerik sansürü değil, rol sınırıdır. Sistem doktor değildir, doktor gibi konuşmaz.
+**Kural 3 ile çelişir mi?** Hayır. Kural 3 "sistem *kitabı* reddetmez" der; kitap tam olarak sindirilir ve aktarılır. Reddedilen şey **kullanıcının kişisel klinik sorusu**dur — içerik sansürü değil, rol sınırı.
 
 ---
 
@@ -319,11 +305,9 @@ Hayır. Kural 3 "sistem kitabı reddetmez" der — **kitap** reddedilmez, kitap 
 
 İki kitap zıt bulgu veriyor. Ne yapılır?
 
-### 6.1 Karar: kazanan ilan edilmez, gerilim gösterilir — ama gerilim ölçülür
+**Karar: kazanan ilan edilmez, gerilim ölçülerek gösterilir.** "İkisi de olabilir" işe yaramaz (kullanıcı kafa karışıklığından nefret ediyor); "A kazandı" yanlış (sistem hakem değil). Çözüm: çelişkiyi tek ekranda, ölçülmüş biçimde göstermek.
 
-"İkisi de olabilir" cevabı işe yaramaz (kullanıcı kafa karışıklığından nefret ediyor). "A kazandı" cevabı da yanlış (sistem hakem değil). Çözüm: **çelişkiyi tek ekranda, ölçülmüş biçimde** göstermek.
-
-### 6.2 Çelişki kartı (contradiction card)
+### 6.1 Çelişki kartı (contradiction card)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -344,7 +328,7 @@ Hayır. Kural 3 "sistem kitabı reddetmez" der — **kitap** reddedilmez, kitap 
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 6.3 Sıralama kuralı (deterministik)
+### 6.2 Sıralama kuralı (deterministik)
 
 Sistem hangi tarafın "daha güçlü zeminde" olduğunu şu leksikografik sırayla söyler:
 
@@ -356,7 +340,7 @@ Sistem hangi tarafın "daha güçlü zeminde" olduğunu şu leksikografik sıray
 
 Beraberlik → "eşit güçte, karar verilemiyor" yazılır. Bu geçerli bir çıktıdır.
 
-### 6.4 Sözde-çelişki tespiti
+### 6.3 Sözde-çelişki tespiti
 
 Çelişki kaydedilmeden önce PICO karşılaştırması yapılır:
 
@@ -367,14 +351,9 @@ if A.outcome ≉ B.outcome:        → "farklı sonuç ölçütü, çelişki de�
 else:                            → gerçek çelişki, §6.2 kartı
 ```
 
-Bu, ampirik alanlardaki "çelişkilerin" büyük kısmını eritir ve kullanıcıya **çelişkiden daha değerli** bir şey verir: iki çalışmanın neyi farklı ölçtüğünü.
+Bu, "çelişkilerin" büyük kısmını eritir ve daha değerli bir şey verir: iki çalışmanın neyi farklı ölçtüğünü.
 
-### 6.5 Dil
-
-- ✔ "B daha güçlü zeminde duruyor."
-- ✔ "İkisi aynı soruyu sormuyor."
-- ✗ "B doğru, A yanlış."
-- ✗ "Bilim artık B diyor." — sistem bilimin sesi değil
+**Dil:** ✔ "B daha güçlü zeminde duruyor." · ✔ "İkisi aynı soruyu sormuyor." — ✗ "B doğru, A yanlış." · ✗ "Bilim artık B diyor."(sistem bilimin sesi değil)
 
 ---
 
@@ -384,51 +363,37 @@ Bu, ampirik alanlardaki "çelişkilerin" büyük kısmını eritir ve kullanıc�
 
 ### T1 — Doz-yanıt eğrisi → monoton olmayan parametre ayarı
 
-**Tıp:** Etki doza monoton değildir; hormesis (düşük dozda faydalı, yüksek dozda zararlı) ve terapötik pencere (therapeutic window) vardır. Etkili doz ile toksik doz arasındaki oran = terapötik indeks.
-**Mühendislik:** Öğrenme oranı, thread havuzu boyutu, cache TTL, retry sayısı — hepsi ters-U eğrisi. "Daha fazla daha iyi" varsayımı buralarda yanlış.
-**Transfer edilen yapı:** *Bir parametrenin optimum aralığını, tek yönlü artışla değil, iki yönlü sınırla (alt eşik + toksisite eşiği) tanımla; aralarındaki oranı sistemin sağlamlık payı olarak raporla.*
-**Somut soru:** "Bu servisin retry sayısının terapötik indeksi kaç?"
+**Tıp:** Etki doza monoton değildir; hormesis (düşük dozda faydalı, yüksek dozda zararlı) ve terapötik pencere vardır. Etkili doz / toksik doz = terapötik indeks. **Mühendislik:** öğrenme oranı, thread havuzu, cache TTL, retry sayısı — hepsi ters-U eğrisi; "daha fazla daha iyi" varsayımı buralarda yanlış.
+**Yapı:** *Bir parametrenin optimumunu tek yönlü artışla değil iki yönlü sınırla (alt eşik + toksisite eşiği) tanımla; aradaki oranı sağlamlık payı olarak raporla.* → "Bu servisin retry sayısının terapötik indeksi kaç?"
 
 ### T2 — Homeostaz ve negatif geri besleme → kontrol döngüsü tasarımı
 
-**Tıp:** Vücut set-point etrafında düzenler; efektör, sensör, gecikme, kazanç (gain). Hastalık çoğu zaman **düzenlemenin bozulması**dır, değerin kendisi değil (ör. tip-2 diyabet = insülin direnci, insülin yokluğu değil).
-**Mühendislik:** Autoscaling, backpressure, PID kontrolörler, rate limiter. Gecikmeli geri besleme salınım (oscillation) üretir — hem böbrekte hem autoscaler'da.
-**Transfer edilen yapı:** *Bir metriğin sapmasını okurken önce "değer mi bozuk, düzenleyici mi bozuk" diye sor. Düzenleyici bozuksa değeri zorlamak durumu kötüleştirir.*
-**Somut soru:** "Latency yüksek — kaynak mı yetersiz, yoksa autoscaler'ın kazancı mı fazla?"
+**Tıp:** Vücut set-point etrafında düzenler; sensör, efektör, gecikme, kazanç (gain). Hastalık çoğu zaman **düzenlemenin** bozulmasıdır, değerin değil (tip-2 diyabet = insülin direnci, insülin yokluğu değil). **Mühendislik:** autoscaling, backpressure, PID, rate limiter; gecikmeli geri besleme hem böbrekte hem autoscaler'da salınım üretir.
+**Yapı:** *Bir metriğin sapmasında önce "değer mi bozuk, düzenleyici mi" diye sor; düzenleyici bozuksa değeri zorlamak durumu kötüleştirir.* → "Latency yüksek — kaynak mı yetersiz, autoscaler kazancı mı fazla?"
 
 ### T3 — Triyaj → sınırlı kaynak altında sıralama
 
-**Tıp:** Afet triyajında kaynak, iyileşme olasılığı en yüksek olana değil, **müdahalenin sonucu en çok değiştirdiği** hastaya gider. Zaten iyi olan ve zaten kaybedilen aynı kategoriye düşer: bekleyebilir.
-**Mühendislik:** Bug önceliklendirme, teknik borç sırası, incident yanıtı. Yaygın hata: "en kötü olan önce" — oysa doğru ölçüt **müdahale kaldıracı** (etki × düzeltilebilirlik).
-**Transfer edilen yapı:** *Sıralamayı şiddete göre değil, `Δ(sonuç | müdahale)` değerine göre yap.*
-**Somut soru:** "Backlog'da şiddeti en yüksek olan değil, düzeltmenin en çok fark yarattığı hangisi?"
+**Tıp:** Afet triyajında kaynak, iyileşme olasılığı en yüksek olana değil **müdahalenin sonucu en çok değiştirdiği** hastaya gider; zaten iyi olan ve zaten kaybedilen aynı kategoriye düşer. **Mühendislik:** bug önceliklendirme, teknik borç sırası, incident yanıtı. Yaygın hata: "en kötü olan önce".
+**Yapı:** *Sıralamayı şiddete göre değil `Δ(sonuç | müdahale)` değerine göre yap.* → "Backlog'da en şiddetli olan değil, düzeltmenin en çok fark yarattığı hangisi?"
 
 ### T4 — Teşhis ağacı ve olabilirlik oranı (likelihood ratio) → hata ayıklama sırası
 
-**Tıp:** İyi klinisyen en olası tanıyı değil, **en çok bilgi veren testi** ilk yapar. Bayes: ön-test olasılığı × LR = son-test olasılığı. Düşük LR'li test pahalıysa hiç yapılmaz.
-**Mühendislik:** Debug sırası, log ekleme yeri, bisect. Yaygın hata: en tanıdık hipotezden başlamak.
-**Transfer edilen yapı:** *Her tanı adımını "bu test hipotez uzayını kaça böler / maliyeti ne" oranıyla sırala. Binary search zaten bunun ekstrem hali.*
-**Somut soru:** "Bu log satırını eklemek olasılık uzayını yarıya bölüyor mu, %5 mi kırpıyor?"
+**Tıp:** İyi klinisyen en olası tanıyı değil **en çok bilgi veren testi** ilk yapar; ön-test olasılığı × olabilirlik oranı (likelihood ratio) = son-test olasılığı. Düşük LR'li pahalı test hiç yapılmaz. **Mühendislik:** debug sırası, log ekleme yeri, bisect. Yaygın hata: en tanıdık hipotezden başlamak.
+**Yapı:** *Her tanı adımını "hipotez uzayını kaça böler / maliyeti ne" oranıyla sırala; binary search bunun ekstrem hâli.* → "Bu log satırı uzayı yarıya mı bölüyor, %5 mi kırpıyor?"
 
 ### T5 — Yanlış pozitifin maliyeti ve tarama paradoksu → alarm tasarımı
 
-**Tıp:** Nadir hastalıkta %99 özgüllüklü test bile çoğunlukla yanlış pozitif verir (taban oranı yanılgısı). Aşırı tarama → gereksiz biyopsi, aşırı teşhis (overdiagnosis), hasta zararı. "Test etmemek" bazen doğru karardır.
-**Mühendislik:** Alarm yorgunluğu (alert fatigue), flaky test, statik analiz gürültüsü, güvenlik uyarıları. Aynı matematik: nadir olay + yüksek hacim = pozitiflerin çoğu yanlış.
-**Transfer edilen yapı:** *Bir alarmı eklemeden önce taban oranını tahmin et ve PPV hesapla; PPV düşükse alarm sistemin duyarlılığını topluca düşürür.*
-**Somut soru:** "Bu uyarı ayda kaç kez doğru çıkacak? 1'den azsa ekleme."
+**Tıp:** Nadir hastalıkta %99 özgüllüklü test bile çoğunlukla yanlış pozitif verir (taban oranı yanılgısı); aşırı tarama → gereksiz biyopsi, aşırı teşhis, hasta zararı. "Test etmemek" bazen doğru karardır. **Mühendislik:** alarm yorgunluğu, flaky test, statik analiz gürültüsü — aynı matematik: nadir olay + yüksek hacim = pozitiflerin çoğu yanlış.
+**Yapı:** *Alarmı eklemeden önce taban oranını tahmin et ve PPV hesapla; düşük PPV sistemin toplam duyarlılığını düşürür.* → "Bu uyarı ayda kaç kez doğru çıkacak? 1'den azsa ekleme."
 
 ### T6 — Antibiyotik direnci → optimizasyon baskısının uyum yaratması
 
-**Tıp:** Bir baskı sürekli uygulandığında popülasyon ona uyum sağlar; direnç gelişir. Karşı önlemler: kombinasyon tedavisi, döngüsel (cycling) rejim, tam kür (yarım doz en kötüsü).
-**Mühendislik:** Goodhart yasası, metrik oyunlama, spam filtresi ↔ spam yazarı, benchmark overfitting, WAF kuralları.
-**Transfer edilen yapı:** *Adaptif bir rakip varsa tek ve sabit bir metrik/kural asla kalıcı değildir; ya kombinasyon ya rotasyon gerekir. Ve yarım uygulanan kural (yarım doz) hiç uygulamamaktan kötüdür — sadece dirençliyi seçer.*
-**Somut soru:** "Bu metriği hedef yaparsam ekip nasıl uyum sağlar, ve yarım uygularsam ne seçilmiş olur?"
+**Tıp:** Sürekli uygulanan baskıya popülasyon uyum sağlar; direnç gelişir. Karşı önlem: kombinasyon tedavisi, döngüsel rejim, tam kür — yarım doz en kötüsü. **Mühendislik:** Goodhart yasası, metrik oyunlama, spam filtresi ↔ spam yazarı, benchmark overfitting, WAF kuralları.
+**Yapı:** *Adaptif rakip varsa tek ve sabit bir metrik/kural kalıcı değildir; kombinasyon ya da rotasyon gerekir — ve yarım uygulanan kural hiç uygulamamaktan kötüdür, sadece dirençliyi seçer.* → "Bu metriği hedef yaparsam ekip nasıl uyum sağlar?"
 
-### T7 — Çalışma tasarımı → deney tasarımı (bonus, en doğrudan transfer)
+### T7 — Çalışma tasarımı → deney tasarımı
 
-**Tıp:** Randomizasyon, körleme, ön kayıt, birincil sonuç ölçütünü önceden ilan etme, ara analiz durdurma kuralları.
-**Mühendislik:** A/B test, feature flag deneyi, kapasite testi. Yaygın hata: p-hacking'in mühendislik hali — deneyi anlamlı çıkana kadar izlemek (peeking).
-**Transfer edilen yapı:** *Birincil metriği ve örneklem büyüklüğünü deneyden önce yaz, deney sırasında bakma.*
+**Tıp:** randomizasyon, körleme, ön kayıt, birincil sonucu önceden ilan etme, durdurma kuralları. **Mühendislik:** A/B test, feature flag deneyi; p-hacking'in mühendislik hali = deneyi anlamlı çıkana kadar izlemek (peeking). **Yapı:** *birincil metriği ve örneklem büyüklüğünü deneyden önce yaz, sırasında bakma.*
 
 > `07-transfer.md` için not: T1, T4, T5 en yüksek transfer verimine sahip üçlü — hepsi doğrudan sayısal, hepsi mühendisin haftalık kararında geçiyor.
 
@@ -439,67 +404,49 @@ Bu, ampirik alanlardaki "çelişkilerin" büyük kısmını eritir ve kullanıc�
 ```yaml
 atom_id: atm_9f2c41
 type: empirical_claim
-
-book_id: bk_0117
-book_title: "Uyku ve Metabolizma"        # örnek
-book_year: 2018
+book: { id: bk_0117, title: "Uyku ve Metabolizma", year: 2018 }
 chapter: "Bölüm 4 — Kısa Uyku ve İnsülin"
 page_anchor: { page: 96, para: 2 }
-quote: >
-  "On bir sağlıklı genç erkeği altı gece boyunca dört saat uykuya
-   kısıtladığımızda, glukoz tolerans testleri prediyabetik aralığa kaydı."
-
-claim: "Kısa süreli uyku kısıtlaması sağlıklı genç erişkinlerde glukoz toleransını bozar."
+quote: "On bir sağlıklı genç erkeği altı gece boyunca dört saat uykuya
+        kısıtladığımızda, glukoz tolerans testleri prediyabetik aralığa kaydı."
+claim: "Kısa uyku kısıtlaması sağlıklı genç erişkinlerde glukoz toleransını bozar."
 
 pico:
   population:   "11 sağlıklı erkek, 18–27 yaş, normal VKİ"
   intervention: "6 gece boyunca gecede 4 saat uyku"
-  comparator:   "aynı denekler, toparlanma döneminde 12 saat uyku (çapraz geçiş)"
+  comparator:   "aynı denekler, toparlanmada 12 saat uyku (çapraz geçiş)"
   outcome:      "oral glukoz tolerans testi (OGTT) eğri altı alanı"
   outcome_kind: surrogate
 
-effect_size:
-  kind: "%change"
-  value: -40
-  note: "glukoz temizlenme hızında azalma"
+effect_size:         { kind: "%change", value: -40, note: "glukoz temizlenme hızı" }
 confidence_interval: null
-p_value: 0.02
-sample_size: 11
-
-study_design: randomized_crossover
-publication_year: 1999
+p_value:             0.02
+sample_size:         11
+study_design:        randomized_crossover
+publication_year:    1999
 
 citation_chain:
-  book_says: "Spiegel, Leproult & Van Cauter, The Lancet, 1999"
-  resolved: true
+  book_says:  "Spiegel, Leproult & Van Cauter, The Lancet, 1999"
+  resolved:   true
   identifier: "PMID:10543671"
 
-evidence_level: L2
-evidence_note: "Randomize çapraz geçiş; ancak n=11 ve vekil sonuç."
-
-replication_risk: moderate
-replication_note: >
-  Alan: fizyoloji/metabolizma (kat. 0.75). Çekirdek bulgu birden çok
-  laboratuvarda tekrarlandı; etkinin büyüklüğü daha küçük bildirildi.
-
+evidence_level:   L2                # randomize çapraz geçiş; ama n=11, vekil sonuç
+replication_risk: moderate          # fizyoloji (0.75); çekirdek bulgu tekrarlandı,
+                                    # etki büyüklüğü sonraki çalışmalarda daha küçük
 warning_flags:
-  - code: S10
-    text: "Ölçülen ara gösterge (glukoz toleransı); iddia sert sonuca (diyabet) uzanıyor."
-  - code: S1
-    text: "Bölüm bu tek çalışmaya dayanıyor."
-
-warning_score: 5          # → turuncu rozet: "zayıf"
+  - { code: S10, text: "Ölçülen ara gösterge; iddia sert sonuca (diyabet) uzanıyor." }
+  - { code: S1,  text: "Bölüm bu tek çalışmaya dayanıyor." }
+warning_score: 5                    # → turuncu rozet: "zayıf"
 
 graph_edges:
-  - { rel: "supports",     target: atm_7a10bb }   # "uyku borcu birikir"
-  - { rel: "contradicts",  target: atm_44e0d2 }   # başka kitap: etki geçici
-  - { rel: "prerequisite", target: atm_2b91ff }   # insülin direnci tanımı
+  - { rel: supports,     target: atm_7a10bb }   # "uyku borcu birikir"
+  - { rel: contradicts,  target: atm_44e0d2 }   # başka kitap: etki geçici
+  - { rel: prerequisite, target: atm_2b91ff }   # insülin direnci tanımı
 
 transfer_hooks:
-  - open_question: "oq_004 — build sunucularının gece throttling'i"
-    structure: "T1 doz-yanıt: kısıtlamanın etkisi eşik sonrası doğrusal değil"
-    strength: 0.42
-    label: hypothesis_only
+  - { open_question: "oq_004 — build sunucularının gece throttling'i",
+      structure: "T1 doz-yanıt: etki eşik sonrası doğrusal değil",
+      strength: 0.42, label: hypothesis_only }
 ```
 
 ### Bu atomun arayüzdeki hâli
